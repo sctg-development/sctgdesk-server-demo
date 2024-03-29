@@ -1,10 +1,5 @@
 use hbb_common::{
-    bytes::BytesMut,
-    protobuf::Message as _,
-    rendezvous_proto::*,
-    tcp::{new_listener, FramedStream},
-    tokio,
-    udp::FramedSocket,
+    bytes::BytesMut, protobuf::Message as _, rendezvous_proto::*, sodiumoxide::hex, tcp::{new_listener, FramedStream}, tokio, udp::FramedSocket
 };
 
 #[tokio::main(basic_scheduler)]
@@ -26,7 +21,7 @@ async fn main() {
                     if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
                         match msg_in.union {
                             Some(rendezvous_message::Union::punch_hole_request(ph)) => {
-                                println!("punch_hole_request {:?}", addr);
+                                println!("punch_hole_request {:?} - bytes: {:?}", addr, hex::encode(&bytes));
                                 if let Some(addr) = id_map.get(&ph.id) {
                                     let mut msg_out = RendezvousMessage::new();
                                     msg_out.set_request_relay(RequestRelay {
@@ -38,7 +33,7 @@ async fn main() {
                                 }
                             }
                             Some(rendezvous_message::Union::relay_response(_)) => {
-                                println!("relay_response {:?}", addr);
+                                println!("relay_response {:?} - bytes: {:?}", addr, hex::encode(&bytes));
                                 let mut msg_out = RendezvousMessage::new();
                                 msg_out.set_relay_response(RelayResponse {
                                     relay_server: relay_server.clone(),
@@ -57,8 +52,12 @@ async fn main() {
                                     }
                                 }
                             }
-                            _ => {}
+                            _ => {
+                                println!("unknown RendezvousMessage in tcp {:?}", hex::encode(&bytes));
+                            }
                         }
+                    }else{
+                        println!("unknown TCP message {:?}", hex::encode(&bytes));
                     }
                 }
             }
@@ -79,10 +78,12 @@ async fn relay(
     loop {
         tokio::select! {
             Some(Ok((bytes, addr))) = socket.next() => {
+                println!("received udp {:?}", hex::encode(&bytes));
                 handle_udp(socket, bytes, addr, id_map).await;
             }
             res = peer.next() => {
                 if let Some(Ok(bytes)) = res {
+                    println!("send udp {:?}", hex::encode(&bytes));
                     stream.send_bytes(bytes.into()).await.ok();
                 } else {
                     break;
@@ -108,14 +109,14 @@ async fn handle_udp(
     if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
         match msg_in.union {
             Some(rendezvous_message::Union::register_peer(rp)) => {
-                println!("register_peer {:?}", addr);
+                println!("register_peer {:?} - bytes: {:?}", addr, hex::encode(&bytes));
                 id_map.insert(rp.id, addr);
                 let mut msg_out = RendezvousMessage::new();
                 msg_out.set_register_peer_response(RegisterPeerResponse::new());
                 socket.send(&msg_out, addr).await.ok();
             }
             Some(rendezvous_message::Union::register_pk(_)) => {
-                println!("register_pk {:?}", addr);
+                println!("register_pk {:?} - bytes: {:?}", addr, hex::encode(&bytes));
                 let mut msg_out = RendezvousMessage::new();
                 msg_out.set_register_pk_response(RegisterPkResponse {
                     result: register_pk_response::Result::OK.into(),
@@ -123,7 +124,9 @@ async fn handle_udp(
                 });
                 socket.send(&msg_out, addr).await.ok();
             }
-            _ => {}
+            _ => {
+                println!("unknown message {:?}", hex::encode(&bytes));
+            }
         }
     }
 }
