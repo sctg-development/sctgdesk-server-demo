@@ -620,7 +620,7 @@ const PEERS: &str = "peers";
 
 impl PeerConfig {
     pub fn load(id: &str) -> PeerConfig {
-        let _ = CONFIG.read().unwrap(); // for lock
+        let _unused = CONFIG.read().unwrap(); // for lock
         match confy::load_path(&Self::path(id)) {
             Ok(config) => config,
             Err(err) => {
@@ -631,7 +631,7 @@ impl PeerConfig {
     }
 
     pub fn store(&self, id: &str) {
-        let _ = CONFIG.read().unwrap(); // for lock
+        let _unused = CONFIG.read().unwrap(); // for lock
         if let Err(err) = confy::store_path(Self::path(id), self) {
             log::error!("Failed to store config: {}", err);
         }
