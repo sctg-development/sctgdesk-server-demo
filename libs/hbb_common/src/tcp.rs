@@ -214,6 +214,8 @@ impl FramedStream {
             if let Some(key) = self.2.as_mut() {
                 if let Err(err) = key.dec(bytes) {
                     return Some(Err(err));
+                }else{
+                    log::debug!("decoded {:?} bytes",bytes.len());
                 }
             }
         }
